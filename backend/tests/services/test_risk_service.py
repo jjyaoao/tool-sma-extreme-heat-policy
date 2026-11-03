@@ -945,19 +945,24 @@ async def test_risk_service_logs_one_summary_per_cache_miss(
 
 
 @pytest.mark.parametrize(
-    ("provider_field", "required_field"),
-    [("temperature_2m", "tdb"), ("direct_normal_irradiance", "sol_radiation_dir")],
+    ("provider_field", "expected_infinite_fields"),
+    [
+        ("temperature_2m", ["tdb", "tr"]),
+        ("direct_normal_irradiance", ["sol_radiation_dir", "tr"]),
+    ],
 )
 @pytest.mark.parametrize("infinite_value", [float("inf"), float("-inf")])
 async def test_risk_service_skips_infinite_provider_input_through_real_mrt(
     caplog: pytest.LogCaptureFixture,
     provider_field: str,
-    required_field: str,
+    expected_infinite_fields: list[str],
     infinite_value: float,
 ) -> None:
     """Keep usable hours through real provider parsing, solar geometry and solar gain."""
 
     timezone_name = "Australia/Adelaide"
+    # 00:00-02:00 UTC is daytime in Adelaide year-round, so solar gain propagates
+    # infinite direct radiation into radiant temperature in the daylight MRT path.
     start = (datetime.now(tz=UTC) + timedelta(days=1)).replace(
         hour=0, minute=0, second=0, microsecond=0
     )
@@ -1023,6 +1028,8 @@ async def test_risk_service_skips_infinite_provider_input_through_real_mrt(
         assert point.inputs.tr > point.inputs.tdb
     for payload in calculator.payloads:
         assert all(isfinite(value) for value in (payload.tdb, payload.tr, payload.rh, payload.vr))
+    # Count only this service's summary: negative infinite radiation also produces
+    # the MRT pipeline's separate negative-delta warning.
     records = [
         record
         for record in caplog.records
@@ -1031,10 +1038,11 @@ async def test_risk_service_skips_infinite_provider_input_through_real_mrt(
     assert len(records) == 1
     record = records[0]
     assert record.timezone == timezone_name
-    assert len(record.skipped_hours) == 1
-    assert record.skipped_hours[0]["time_utc"] == times[1].isoformat()
-    assert required_field in record.skipped_hours[0]["infinite_inputs"]
+    assert record.skipped_hours == [
+        {"time_utc": times[1].isoformat(), "infinite_inputs": expected_infinite_fields}
+    ]
     message = logging.Formatter("%(message)s").format(record)
     assert timezone_name in message
     assert times[1].isoformat() in message
-    assert required_field in message
+    for field in expected_infinite_fields:
+        assert field in message

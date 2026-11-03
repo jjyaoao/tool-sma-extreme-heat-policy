@@ -166,7 +166,11 @@ class RiskService:
         sport: str,
         timezone_name: str,
     ) -> list[ForecastPoint]:
-        """Keep usable MRT rows and warn once about infinite inputs with location context."""
+        """Build the forecast with the earliest usable MRT row as the current point.
+
+        Emit one risk-service summary warning for infinite inputs with location context.
+        Raise 422 using the earliest candidate row when no usable row remains.
+        """
 
         required_inputs = forecast_mrt_df[list(_REQUIRED_INPUT_FIELDS)]
         unavailable_input_mask = required_inputs.map(_is_unavailable_input)

@@ -240,15 +240,17 @@ Example response:
 - Forecast rows with missing or infinite required inputs are skipped instead of failing
   the request when another usable row remains. Required inputs are not range-checked,
   clamped or filled with fallback values.
-- A request that skips hours because of infinite required inputs produces one server-side
+- A request that skips hours because of infinite required inputs produces one risk-service
   warning summarising all affected hours, including when no usable hour remains and the
   request returns `422`. The message text includes the location timezone and lists each
   skipped UTC timestamp with its infinite fields, so the details are visible with the
-  standard message-only formatter. The timezone is also retained as a structured attribute.
-  The same information is retained in the structured `skipped_hours` attribute: a list
-  of entries containing `time_utc` and `infinite_inputs`. Multiple infinite fields in one
+  standard message-only formatter. The location timezone is also retained in the structured
+  `timezone` attribute. The structured `skipped_hours` attribute is a list of entries
+  containing `time_utc` and `infinite_inputs`. Multiple infinite fields in one
   hour share an entry; rows with only missing inputs are not included. Cache hits do not
   recalculate or repeat this warning.
+  Other pipeline warnings are independent: negative infinite radiation also produces
+  the MRT pipeline's negative-delta warning, so one request can log both warnings.
 
   Example message for two skipped hours in one request:
 
